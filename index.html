@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0">
 <title>AKIJ Workforce Intelligence</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
@@ -14,7 +14,7 @@
   --green:#1A7D5A;--ice:#EAF4F2;--white:#FFFFFF;--cream:#F8FAFB;
   --mid:#4A5568;--muted:#8A9BB0;--dark:#1E2A38;--line:#C8D8E4;
   --shadow:0 4px 20px rgba(13,27,42,.11);--r:10px;
-  --sb:240px;--font:'Inter',sans-serif;--mono:'Inter',monospace;--disp:'Inter',sans-serif;
+  --sb:240px;--font:'Inter',sans-serif;--mono:'DM Mono',monospace;--disp:'Inter',sans-serif;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;font-family:var(--font);background:var(--cream);color:var(--dark);overflow-x:hidden}
@@ -322,7 +322,7 @@ tbody td{padding:7px 11px;vertical-align:middle;white-space:nowrap}
 <!-- SIDEBAR ──────────────────────────────────────────────────────────────────── -->
 <nav class="sidebar" id="sidebar">
   <div class="logo">
-    <h1>AKIJ Resource<br>Group</h1>
+    <h1>AKIJ Resource</h1>
     <p>HR Planning</p>
     <span class="logo-badge">Live Analytics</span>
   </div>
@@ -939,7 +939,7 @@ function applySearchAndFilters(){
     if(id==='overtime')  renderOT();
     if(id==='top20')     renderTop20();
     if(id==='bottom20')  renderBottom20();
-    if(id==='overview')  {renderDeptOT();renderWLBDist();renderSBU();}
+    if(id==='overview')  {renderKPIs();renderWLBBands();renderSignals();renderDeptOT();renderWLBDist();renderSBU();}
   }
   $('filter-count')&&($('filter-count').textContent=filteredData.length<DATA.length?`${filteredData.length} of ${DATA.length}`:'');
   $('emp-count')&&($('emp-count').textContent=filteredData.length);
@@ -960,28 +960,48 @@ function renderKPIs(){
   const totalOTH=d.reduce((a,r)=>a+fi(r['SUM OF EXCESSIVE HOURS']),0);
   const avgWLB=d.length?d.reduce((a,r)=>a+fi(r['SUM of Work Life Balance Score']),0)/d.length:0;
   const withOT=d.filter(r=>fi(r['SUM of Days Excessive OT'])>0).length;
+  const erpEmp=d.filter(r=>fi(r['LATE ERP ACTIVITIES'])>0).length;
+  const totalMove=d.reduce((a,r)=>a+fi(r['TotalMovementDays']),0);
   $('kpi-grid').innerHTML=[
-    {v:d.length,          l:'Employees',        s:'current view',      cls:'',     i:'👥'},
-    {v:fmt(totalOTH,0)+'h',l:'Total OT Hours',  s:'Oct 2025 – Apr 2026',cls:'rust', i:'⏱'},
-    {v:fmt(avgWLB,1)+'%', l:'Avg WLB Score',    s:'composite',         cls:'amber',i:'❤'},
-    {v:withOT,            l:'Employees w/ OT',  s:Math.round(withOT/Math.max(d.length,1)*100)+'% of view',cls:'',i:'📊'},
-    {v:'697',             l:'ERP Users Apr26',  s:'after 6:30PM',      cls:'green',i:'🗄️'},
-    {v:'28,053',          l:'Movement Days',    s:'official movements', cls:'navy', i:'🚶'},
+    {v:d.length,                  l:'Employees',       s:'in current view',                          cls:'',     i:'👥'},
+    {v:fmt(totalOTH,0)+'h',       l:'Total OT Hours',  s:'excessive overtime accumulated',            cls:'rust', i:'⏱'},
+    {v:fmt(avgWLB,1)+'%',         l:'Avg WLB Score',   s:'composite penalty score',                  cls:'amber',i:'❤'},
+    {v:withOT,                    l:'Employees w/ OT', s:Math.round(withOT/Math.max(d.length,1)*100)+'% of current view',cls:'',i:'📊'},
+    {v:erpEmp.toLocaleString(),   l:'ERP Active Users',s:'after-hours ERP activity',                 cls:'green',i:'🗄️'},
+    {v:totalMove.toLocaleString(),l:'Movement Days',   s:'official movements in view',               cls:'navy', i:'🚶'},
   ].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-ico">${k.i}</div><div class="kpi-val">${k.v}</div><div class="kpi-label">${k.l}</div><div class="kpi-sub">${k.s}</div></div>`).join('');
 }
 
 function renderWLBBands(){
-  const bands=[{cls:'healthy',v:593,l:'Healthy',s:'WLB ≥ 76%'},{cls:'moderate',v:242,l:'Moderate',s:'WLB 51–75%'},{cls:'at-risk',v:136,l:'At Risk',s:'WLB 26–50%'},{cls:'critical',v:11,l:'Critical',s:'WLB ≤ 25%'}];
+  const d=filteredData;
+  const healthy=d.filter(r=>fi0(r['SUM of Work Life Balance Score'])>=76).length;
+  const moderate=d.filter(r=>{const s=fi0(r['SUM of Work Life Balance Score']);return s>=51&&s<=75;}).length;
+  const atRisk=d.filter(r=>{const s=fi0(r['SUM of Work Life Balance Score']);return s>=26&&s<=50;}).length;
+  const critical=d.filter(r=>fi0(r['SUM of Work Life Balance Score'])<=25).length;
+  const bands=[
+    {cls:'healthy',  v:healthy,  l:'Healthy',  s:'WLB ≥ 76%'},
+    {cls:'moderate', v:moderate, l:'Moderate', s:'WLB 51–75%'},
+    {cls:'at-risk',  v:atRisk,   l:'At Risk',  s:'WLB 26–50%'},
+    {cls:'critical', v:critical, l:'Critical', s:'WLB ≤ 25%'},
+  ];
   const html=bands.map(b=>`<div class="wlb-band ${b.cls}"><div class="wlb-band-val">${b.v}</div><div class="wlb-band-lbl">${b.l}</div><div class="wlb-band-sub">${b.s}</div></div>`).join('');
   ['wlb-bands','wlb-bands2'].forEach(id=>{const el=$(id);if(el)el.innerHTML=html;});
 }
 
 function renderSignals(){
-  const html=[
-    {cls:'erp',i:'🗄️',v:'148,761',l:'ERP Accesses',d:'697 employees · April 2026 · after 6:30PM'},
-    {cls:'chat',i:'💬',v:'2,129',l:'Chat Messages',d:'360 employees · February 2026 · after 6PM'},
-    {cls:'email',i:'✉️',v:'636',l:'Late Emails',d:'44 employees · February 2026 · after 6PM'},
-  ].map(s=>`<div class="signal ${s.cls}"><div class="signal-ico">${s.i}</div><div class="signal-val">${s.v}</div><div class="signal-lbl">${s.l}</div><div class="signal-detail">${s.d}</div></div>`).join('');
+  const d=filteredData;
+  const erpTotal=d.reduce((a,r)=>a+fi(r['LATE ERP ACTIVITIES']),0);
+  const erpEmp=d.filter(r=>fi(r['LATE ERP ACTIVITIES'])>0).length;
+  const chatTotal=d.reduce((a,r)=>a+fi(r['LATE GOOGLE WORKSPACE ACTIVITIES']),0);
+  const chatEmp=d.filter(r=>fi(r['LATE GOOGLE WORKSPACE ACTIVITIES'])>0).length;
+  const emailTotal=d.reduce((a,r)=>a+fi(r['Late Email Count']),0);
+  const emailEmp=d.filter(r=>fi(r['Late Email Count'])>0).length;
+  const sigs=[
+    {cls:'erp',  i:'🗄️',v:erpTotal.toLocaleString(),  l:'ERP Accesses',   d:`${erpEmp} employees · April 2026 · after 6:30PM`},
+    {cls:'chat', i:'💬', v:chatTotal.toLocaleString(), l:'Chat Messages',  d:`${chatEmp} employees · February 2026 · after 6PM`},
+    {cls:'email',i:'✉️', v:emailTotal.toLocaleString(),l:'Late Emails',    d:`${emailEmp} employees · February 2026 · after 6PM`},
+  ];
+  const html=sigs.map(s=>`<div class="signal ${s.cls}"><div class="signal-ico">${s.i}</div><div class="signal-val">${s.v}</div><div class="signal-lbl">${s.l}</div><div class="signal-detail">${s.d}</div></div>`).join('');
   ['signal-row','signal-row2'].forEach(id=>{const el=$(id);if(el)el.innerHTML=html;});
 }
 
@@ -990,8 +1010,8 @@ function mkChart(id,type,labels,datasets,extra={}){
   const ctx=$(id);if(!ctx)return;
   if(ctx._ch)ctx._ch.destroy();
   ctx._ch=new Chart(ctx.getContext('2d'),{type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{display:extra.legend!==false,position:'bottom',labels:{font:{family:'DM Sans',size:10},color:'#4A5568',boxWidth:11}},tooltip:{titleFont:{family:'DM Sans'},bodyFont:{family:'DM Sans'}}},
-    scales:type==='pie'||type==='doughnut'?{}:{x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{family:'DM Sans',size:9.5},color:'#4A5568'}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{family:'DM Sans',size:9.5},color:'#4A5568'}}},...extra}});
+    plugins:{legend:{display:extra.legend!==false,position:'bottom',labels:{font:{family:'Inter',size:10},color:'#4A5568',boxWidth:11}},tooltip:{titleFont:{family:'Inter'},bodyFont:{family:'Inter'}}},
+    scales:type==='pie'||type==='doughnut'?{}:{x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{family:'Inter',size:9.5},color:'#4A5568'}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{family:'Inter',size:9.5},color:'#4A5568'}}},...extra}});
 }
 function renderDeptOT(){
   const dpts={};filteredData.forEach(r=>{dpts[r.Department]=(dpts[r.Department]||0)+fi(r['SUM OF EXCESSIVE HOURS'])});
@@ -999,7 +1019,12 @@ function renderDeptOT(){
   mkChart('c-dept-ot','bar',s.map(d=>d[0]),[{label:'OT Hrs',data:s.map(d=>Math.round(d[1])),backgroundColor:COLORS,borderRadius:4}],{legend:false,indexAxis:'y'});
 }
 function renderWLBDist(){
-  mkChart('c-wlb-dist','doughnut',['Healthy','Moderate','At Risk','Critical'],[{data:[593,242,136,11],backgroundColor:['#0A7B6E','#E8A838','#C1440E','#8b0000'],borderWidth:0}]);
+  const d=filteredData;
+  const healthy=d.filter(r=>fi0(r['SUM of Work Life Balance Score'])>=76).length;
+  const moderate=d.filter(r=>{const s=fi0(r['SUM of Work Life Balance Score']);return s>=51&&s<=75;}).length;
+  const atRisk=d.filter(r=>{const s=fi0(r['SUM of Work Life Balance Score']);return s>=26&&s<=50;}).length;
+  const critical=d.filter(r=>fi0(r['SUM of Work Life Balance Score'])<=25).length;
+  mkChart('c-wlb-dist','doughnut',['Healthy','Moderate','At Risk','Critical'],[{data:[healthy,moderate,atRisk,critical],backgroundColor:['#0A7B6E','#E8A838','#C1440E','#8b0000'],borderWidth:0}]);
 }
 function renderSBU(){
   const sbus={};filteredData.forEach(r=>{sbus[r.BusinessUnit]=(sbus[r.BusinessUnit]||0)+fi(r['SUM OF EXCESSIVE HOURS'])});
